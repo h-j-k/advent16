@@ -13,6 +13,7 @@ repositories {
 }
 
 dependencies {
+    implementation("commons-codec:commons-codec:1.15")
     testImplementation("org.junit.jupiter:junit-jupiter:5.8.1")
     testImplementation("org.assertj:assertj-core:3.21.0")
 }
