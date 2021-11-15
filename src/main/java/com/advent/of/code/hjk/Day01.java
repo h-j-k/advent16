@@ -2,6 +2,7 @@ package com.advent.of.code.hjk;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -23,7 +24,7 @@ public final class Day01 {
         var position = new Position(Direction.N, new Point(0, 0));
         var seen = new HashSet<Point>();
         for (String instruction : input) {
-            Position temp = position.next(instruction);
+            var temp = position.next(instruction);
             for (Point point : position.point.range(temp.point)) {
                 if (!seen.add(point)) {
                     return point.getDistance();
@@ -72,16 +73,17 @@ public final class Day01 {
 
         List<Point> range(Point other) {
             if (x == other.x) {
-                return y < other.y
-                        ? IntStream.range(y, other.y).mapToObj(i -> new Point(x, i)).toList()
-                        : IntStream.range(-1 * other.y, -1 * y).mapToObj(i -> new Point(x, -1 * i)).toList();
+                return ranger(y, other.y, i -> new Point(x, i));
             } else if (y == other.y) {
-                return x < other.x
-                        ? IntStream.range(x, other.x).mapToObj(i -> new Point(i, y)).toList()
-                        : IntStream.range(-1 * other.x, -1 * x).mapToObj(i -> new Point(-1 * i, y)).toList();
+                return ranger(x, other.x, i -> new Point(i, y));
             } else {
                 throw new IllegalArgumentException("Incorrect range");
             }
+        }
+
+        private List<Point> ranger(int a, int b, IntFunction<Point> mapper) {
+            return (a < b ? IntStream.range(a, b) : IntStream.range(-1 * b, -1 * a).map(i -> -1 * i))
+                    .mapToObj(mapper).toList();
         }
     }
 
