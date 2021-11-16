@@ -14,4 +14,9 @@ public class Day06Test extends TestBase {
     public void part1() {
         assertThat(Day06.part1(INPUT)).isEqualTo("cyxeoccr");
     }
+
+    @Test
+    public void part2() {
+        assertThat(Day06.part2(INPUT)).isEqualTo("batwpask");
+    }
 }

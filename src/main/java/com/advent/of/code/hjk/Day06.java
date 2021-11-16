@@ -1,8 +1,10 @@
 package com.advent.of.code.hjk;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -13,7 +15,15 @@ public final class Day06 {
     }
 
     public static String part1(List<String> input) {
-        return flip(input).stream().map(Day06::most).collect(Collectors.joining());
+        return solve(input, Comparator.naturalOrder());
+    }
+
+    public static String part2(List<String> input) {
+        return solve(input, Comparator.reverseOrder());
+    }
+
+    private static String solve(List<String> input, Comparator<Long> comparator) {
+        return flip(input).stream().map(most(comparator)).collect(Collectors.joining());
     }
 
     private static List<String> flip(List<String> input) {
@@ -23,11 +33,11 @@ public final class Day06 {
                 .toList();
     }
 
-    private static String most(String value) {
-        return value.chars().mapToObj(c -> String.valueOf((char) c))
+    private static UnaryOperator<String> most(Comparator<Long> comparator) {
+        return value -> value.chars().mapToObj(c -> String.valueOf((char) c))
                 .collect(Collectors.groupingBy(v -> v, Collectors.counting()))
                 .entrySet().stream()
-                .max(Map.Entry.comparingByValue())
+                .max(Map.Entry.comparingByValue(comparator))
                 .map(Map.Entry::getKey)
                 .orElseThrow();
     }
