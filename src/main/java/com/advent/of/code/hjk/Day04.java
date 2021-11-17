@@ -3,7 +3,7 @@ package com.advent.of.code.hjk;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -17,19 +17,15 @@ public final class Day04 {
     private static final Pattern PATTERN = Pattern.compile("(?<name>[a-z-]+)-(?<sectorId>\\d+)\\[(?<checksum>[a-z]+)]");
 
     public static int part1(List<String> input) {
-        return parseAll(input).filter(Room::isValid).mapToInt(Room::sectorId).sum();
+        return parseAll(input, Room::isValid).mapToInt(Room::sectorId).sum();
     }
 
     public static int part2(List<String> input) {
-        return parseAll(input)
-                .filter(room -> room.decryptName().filter(name -> name.startsWith("north")).isPresent())
-                .findFirst()
-                .map(Room::sectorId)
-                .orElseThrow();
+        return parseAll(input, Room::decryptedNameStartsWithNorth).findFirst().map(Room::sectorId).orElseThrow();
     }
 
-    private static Stream<Room> parseAll(List<String> input) {
-        return input.stream().map(Day04::parse);
+    private static Stream<Room> parseAll(List<String> input, Predicate<Room> predicate) {
+        return input.stream().map(Day04::parse).filter(predicate);
     }
 
     private static Room parse(String value) {
@@ -63,12 +59,12 @@ public final class Day04 {
                     .equals(checksum);
         }
 
-        Optional<String> decryptName() {
-            return isValid() ? name.chars()
+        boolean decryptedNameStartsWithNorth() {
+            return isValid() && name.chars()
                     .map(c -> c == ' ' ? c : 'a' + (((c - 'a') + sectorId) % 26))
                     .mapToObj(c -> String.valueOf((char) c))
-                    .collect(Collectors.collectingAndThen(Collectors.joining(), Optional::of))
-                    : Optional.empty();
+                    .collect(Collectors.joining())
+                    .startsWith("north");
         }
     }
 }
