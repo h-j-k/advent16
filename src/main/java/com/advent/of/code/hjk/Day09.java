@@ -1,7 +1,9 @@
 package com.advent.of.code.hjk;
 
 import java.util.Collections;
-import java.util.function.UnaryOperator;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class Day09 {
@@ -10,8 +12,16 @@ public final class Day09 {
         // empty
     }
 
-    public static int part1(String input) {
-        var stringBuilder = new StringBuilder();
+    public static long part1(String input) {
+        return process(input, false);
+    }
+
+    public static long part2(String input) {
+        return process(input, true);
+    }
+
+    private static long process(String input, boolean isNested) {
+        long length = 0;
         Marker marker = null;
         for (int i = 0; i < input.length(); ) {
             if (marker == null) {
@@ -19,40 +29,36 @@ public final class Day09 {
                     marker = parseMarker(i, input);
                     i += marker.begin();
                 } else {
-                    stringBuilder.append(input.charAt(i));
+                    length++;
                     i++;
                 }
             } else {
-                stringBuilder.append(marker.apply(input.substring(i)));
+                String substring = input.substring(i, i + marker.size);
+                length += isNested ? process(substring, true) * marker.times : marker.apply(substring);
                 i += marker.size;
                 marker = null;
             }
         }
-        return stringBuilder.length();
+        return length;
     }
 
     private static final Pattern PATTERN = Pattern.compile("(?<size>\\d+)x(?<times>\\d+)");
 
     private static Marker parseMarker(int index, String input) {
-        var endIndex = input.indexOf(')', index + 1);
-        if (endIndex == -1) {
-            throw new IllegalStateException("No closing ): " + input.substring(index));
-        }
-        var matcher = PATTERN.matcher(input.substring(index + 1, endIndex));
-        if (!matcher.matches()) {
-            throw new IllegalStateException("Not a marker: " + input.substring(index + 1, endIndex));
-        }
-        return new Marker(Integer.parseInt(matcher.group("size")), Integer.parseInt(matcher.group("times")));
+        return Optional.of(PATTERN.matcher(input.substring(index + 1, input.indexOf(')', index + 1))))
+                .filter(Matcher::matches)
+                .map(m -> new Marker(Integer.parseInt(m.group("size")), Integer.parseInt(m.group("times"))))
+                .orElseThrow();
     }
 
-    private record Marker(int size, int times) implements UnaryOperator<String> {
+    private record Marker(int size, int times) implements Function<String, Integer> {
         int begin() {
             return String.format("%dx%d", size, times).length() + 2;
         }
 
         @Override
-        public String apply(String input) {
-            return String.join("", Collections.nCopies(times, input.substring(0, size)));
+        public Integer apply(String input) {
+            return String.join("", Collections.nCopies(times, input.substring(0, size))).length();
         }
     }
 }

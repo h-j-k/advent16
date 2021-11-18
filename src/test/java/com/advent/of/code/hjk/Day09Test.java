@@ -12,4 +12,9 @@ public class Day09Test extends TestBase {
     public void part1() {
         assertThat(Day09.part1(INPUT)).isEqualTo(183269);
     }
+
+    @Test
+    public void part2() {
+        assertThat(Day09.part2(INPUT)).isEqualTo(11317278863L);
+    }
 }
