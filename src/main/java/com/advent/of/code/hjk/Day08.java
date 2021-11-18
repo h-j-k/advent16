@@ -2,9 +2,15 @@ package com.advent.of.code.hjk;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -17,80 +23,69 @@ public final class Day08 {
     }
 
     public static int part1(List<String> input) {
-        Screen.INSTANCE.reset();
-        input.forEach(Screen.INSTANCE::process);
-        System.out.println(Screen.INSTANCE);
-        return Screen.INSTANCE.countLit();
+        return (int) process(input).stream().mapToLong(v -> v.chars().filter(c -> c == LIT).count()).sum();
     }
 
     public static List<String> part2(List<String> input) {
-        Screen.INSTANCE.reset();
-        input.forEach(Screen.INSTANCE::process);
-        return Screen.INSTANCE.contents;
+        return process(input);
     }
 
-    private enum Screen {
-        INSTANCE;
+    private static final int MAX_ROW = 6;
+    private static final int MAX_COLUMN = 50;
+    private static final char LIT = 'x';
 
-        private static final int MAX_ROW = 6;
-        private static final int MAX_COLUMN = 50;
-        private static final char LIT = 'x';
-        private static final Pattern RECT = Pattern.compile("^rect (?<width>\\d+)x(?<height>\\d+)$");
-        private static final Pattern ROW = Pattern.compile("^rotate row y=(?<row>\\d+) by (?<offset>\\d+)$");
-        private static final Pattern COLUMN = Pattern.compile("^rotate column x=(?<col>\\d+) by (?<offset>\\d+)$");
+    private static List<String> process(List<String> input) {
+        var contents = new ArrayList<>(Collections.nCopies(MAX_ROW, make(MAX_COLUMN, ' ')));
+        input.stream().flatMap(instruction ->
+                EnumSet.allOf(Updater.class).stream().flatMap(v -> Map.of(v, instruction).entrySet().stream())
+        ).forEach(entry -> entry.getKey().accept(contents, entry.getValue()));
+        return List.copyOf(contents);
+    }
 
-        private final List<String> contents = new ArrayList<>(Collections.nCopies(MAX_ROW, make(MAX_COLUMN, ' ')));
+    private static String make(int n, char value) {
+        return String.join("", Collections.nCopies(n, String.valueOf(value)));
+    }
 
-        private static String make(int n, char value) {
-            return String.join("", Collections.nCopies(n, String.valueOf(value)));
-        }
-
-        void reset() {
-            contents.clear();
-            contents.addAll(Collections.nCopies(MAX_ROW, make(MAX_COLUMN, ' ')));
-        }
-
-        void process(String instruction) {
-            process(instruction, RECT, this::rect);
-            process(instruction, ROW, this::row);
-            process(instruction, COLUMN, this::column);
-        }
-
-        private void process(String instruction, Pattern pattern, Consumer<Matcher> consumer) {
-            Optional.of(instruction).map(pattern::matcher).filter(Matcher::matches).ifPresent(consumer);
-        }
-
-        private void rect(Matcher instruction) {
-            int width = Integer.parseInt(instruction.group("width"));
+    private enum Updater implements BiConsumer<List<String>, String> {
+        RECT(Pattern.compile("^rect (?<width>\\d+)x(?<height>\\d+)$"), contents -> instruction -> {
+            var width = Integer.parseInt(instruction.group("width"));
             IntStream.range(0, Integer.parseInt(instruction.group("height")))
-                    .forEach(r -> contents.set(r, make(width, LIT) + contents.get(r).substring(width)));
-        }
-
-        private void row(Matcher instruction) {
-            int row = Integer.parseInt(instruction.group("row"));
-            int offset = Integer.parseInt(instruction.group("offset"));
-            contents.set(row, offset(MAX_COLUMN - offset, contents.get(row)));
-        }
-
-        private void column(Matcher instruction) {
-            int col = Integer.parseInt(instruction.group("col"));
-            int offset = Integer.parseInt(instruction.group("offset"));
-            String newColumn = IntStream.range(0, MAX_ROW)
+                    .forEach(update(contents, (i, row) -> make(width, LIT) + row.substring(width)));
+        }),
+        ROW(Pattern.compile("^rotate row y=(?<row>\\d+) by (?<offset>\\d+)$"), contents -> instruction -> {
+            var offset = MAX_COLUMN - Integer.parseInt(instruction.group("offset"));
+            IntStream.of(Integer.parseInt(instruction.group("row")))
+                    .forEach(update(contents, (i, row) -> offset(offset, row)));
+        }),
+        COLUMN(Pattern.compile("^rotate column x=(?<col>\\d+) by (?<offset>\\d+)$"), contents -> instruction -> {
+            var col = Integer.parseInt(instruction.group("col"));
+            var offset = MAX_ROW - Integer.parseInt(instruction.group("offset"));
+            var updated = IntStream.range(0, MAX_ROW)
                     .mapToObj(i -> String.valueOf(contents.get(i).charAt(col)))
-                    .collect(Collectors.collectingAndThen(Collectors.joining(), v -> offset(MAX_ROW - offset, v)));
-            IntStream.range(0, MAX_ROW).forEach(i -> {
-                var row = contents.get(i);
-                contents.set(i, row.substring(0, col) + newColumn.charAt(i) + row.substring(col + 1));
-            });
+                    .collect(Collectors.collectingAndThen(Collectors.joining(), v -> offset(offset, v)));
+            IntStream.range(0, MAX_ROW).forEach(update(contents, (i, row) ->
+                    row.substring(0, col) + updated.charAt(i) + row.substring(col + 1)));
+        });
 
+        private final Pattern pattern;
+        private final Function<List<String>, Consumer<Matcher>> mapper;
+
+        Updater(Pattern pattern, Function<List<String>, Consumer<Matcher>> mapper) {
+            this.pattern = pattern;
+            this.mapper = mapper;
         }
 
-        private String offset(int offset, String value) {
+        @Override
+        public void accept(List<String> contents, String instruction) {
+            Optional.of(pattern.matcher(instruction)).filter(Matcher::matches).ifPresent(mapper.apply(contents));
+        }
+
+        private static String offset(int offset, String value) {
             return value.substring(offset) + value.substring(0, offset);
         }
 
-        int countLit() {
-            return (int) contents.stream().mapToLong(v -> v.chars().filter(c -> c == LIT).count()).sum();
+        private static IntConsumer update(List<String> contents, BiFunction<Integer, String, String> updater) {
+            return i -> contents.set(i, updater.apply(i, contents.get(i)));
         }
     }
 }
