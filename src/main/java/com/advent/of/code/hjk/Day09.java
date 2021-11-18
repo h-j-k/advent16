@@ -1,8 +1,6 @@
 package com.advent.of.code.hjk;
 
-import java.util.Collections;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,20 +19,19 @@ public final class Day09 {
     }
 
     private static long process(String input, boolean isNested) {
-        long length = 0;
+        var length = 0L;
         Marker marker = null;
         for (int i = 0; i < input.length(); ) {
             if (marker == null) {
                 if (input.charAt(i) == '(') {
                     marker = parseMarker(i, input);
-                    i += marker.begin();
+                    i += String.format("(%dx%d)", marker.size, marker.times).length();
                 } else {
                     length++;
                     i++;
                 }
             } else {
-                String substring = input.substring(i, i + marker.size);
-                length += isNested ? process(substring, true) * marker.times : marker.apply(substring);
+                length += (isNested ? process(input.substring(i, i + marker.size), true) : marker.size) * marker.times;
                 i += marker.size;
                 marker = null;
             }
@@ -51,14 +48,6 @@ public final class Day09 {
                 .orElseThrow();
     }
 
-    private record Marker(int size, int times) implements Function<String, Integer> {
-        int begin() {
-            return String.format("%dx%d", size, times).length() + 2;
-        }
-
-        @Override
-        public Integer apply(String input) {
-            return String.join("", Collections.nCopies(times, input.substring(0, size))).length();
-        }
+    private record Marker(int size, int times) {
     }
 }
