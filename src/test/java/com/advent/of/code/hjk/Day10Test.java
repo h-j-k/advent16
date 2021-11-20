@@ -14,4 +14,9 @@ public class Day10Test extends TestBase {
     public void part1() {
         assertThat(Day10.part1(INPUT)).isEqualTo(56);
     }
+
+    @Test
+    public void part2() {
+        assertThat(Day10.part2(INPUT)).isEqualTo(7847);
+    }
 }

@@ -4,7 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public final class Day10 {
 
@@ -12,17 +17,30 @@ public final class Day10 {
         // empty
     }
 
-    private static final Pattern VALUE = Pattern.compile("^value (?<value>\\d+) goes to bot (?<id>\\d+)$");
+    private static final Pattern VALUE =
+            Pattern.compile("^value (?<value>\\d+) goes to bot (?<id>\\d+)$");
     private static final Pattern GIVE =
             Pattern.compile("^bot (?<id>\\d+) gives low to (?<lowTarget>bot|output) (?<lowId>\\d+) and high to (?<highTarget>bot|output) (?<highId>\\d+)$");
 
     public static int part1(List<String> input) {
+        return process(input).bots.stream()
+                .filter(bot -> bot.low == 17 && bot.high == 61)
+                .findFirst()
+                .map(Bot::id)
+                .orElseThrow();
+    }
+
+    public static int part2(List<String> input) {
+        return process(input).filterOutputs(0, 1, 2).values().stream()
+                .mapToInt(i -> i).reduce(1, (a, b) -> a * b);
+    }
+
+    private static Result process(List<String> input) {
         var bots = new HashMap<Integer, Bot>();
-        var outputs = new HashMap<Integer, Integer>();
+        var outputs = new HashMap<Integer, List<Integer>>();
         var copy = new ArrayList<>(input);
         while (!copy.isEmpty()) {
-            var iterator = copy.iterator();
-            while (iterator.hasNext()) {
+            for (var iterator = copy.iterator(); iterator.hasNext(); ) {
                 var instruction = iterator.next();
                 var valueMatcher = VALUE.matcher(instruction);
                 var giveMatcher = GIVE.matcher(instruction);
@@ -44,8 +62,7 @@ public final class Day10 {
                 }
             }
         }
-        return bots.values().stream().filter(bot -> bot.low == 17 && bot.high == 61)
-                .findFirst().map(Bot::id).orElseThrow();
+        return new Result(Set.copyOf(bots.values()), Map.copyOf(outputs));
     }
 
     private record Bot(int id, Target lowTarget, Target highTarget, Integer low, Integer high) {
@@ -71,7 +88,7 @@ public final class Day10 {
             return new Bot(this.id, update.lowTarget, update.highTarget, this.low, this.high);
         }
 
-        boolean isInstructionProcessed(Map<Integer, Bot> bots, Map<Integer, Integer> outputs) {
+        boolean isInstructionProcessed(Map<Integer, Bot> bots, Map<Integer, List<Integer>> outputs) {
             if (high == null || !lowTarget.isReady(bots) || !highTarget.isReady(bots)) {
                 return false;
             }
@@ -86,15 +103,24 @@ public final class Day10 {
             return type.equals("output") || bots.containsKey(id);
         }
 
-        void update(Map<Integer, Bot> bots, Map<Integer, Integer> outputs, int value) {
+        void update(Map<Integer, Bot> bots, Map<Integer, List<Integer>> outputs, int value) {
             switch (type) {
-                case "bot" -> {
-                    if (isReady(bots)) {
-                        bots.computeIfPresent(id, (k, bot) -> bot.merge(value));
-                    }
-                }
-                case "output" -> outputs.put(id, value);
+                case "bot" -> Optional.of(bots).filter(this::isReady)
+                        .ifPresent(b -> b.computeIfPresent(id, (k, bot) -> bot.merge(value)));
+                case "output" -> outputs.merge(id, List.of(value), (a, b) -> Stream.of(a, b).flatMap(List::stream).toList());
             }
+        }
+    }
+
+    private record Result(Set<Bot> bots, Map<Integer, List<Integer>> outputs) {
+        Map<Integer, Integer> filterOutputs(int... ids) {
+            var targets = IntStream.of(ids).boxed().collect(Collectors.toSet());
+            return outputs.entrySet().stream()
+                    .filter(entry -> targets.contains(entry.getKey()))
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            entry -> Optional.of(entry.getValue()).filter(v -> v.size() == 1).orElseThrow().get(0)
+                    ));
         }
     }
 }
