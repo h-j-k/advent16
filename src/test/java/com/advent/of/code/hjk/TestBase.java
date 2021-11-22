@@ -9,9 +9,9 @@ public abstract class TestBase {
 
     public List<String> getInput() {
         try {
-            return Files.readAllLines(
+            return List.copyOf(Files.readAllLines(
                     Paths.get("build", "resources", "test", this.getClass().getSimpleName().replace("Test", ".txt"))
-            );
+            ));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
