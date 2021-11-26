@@ -1,14 +1,13 @@
 package com.advent.of.code.hjk;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -23,10 +22,6 @@ public final class Day11 {
     private Day11() {
         // empty
     }
-
-    private static final List<String> ORDINALS = List.of("first", "second", "third", "fourth");
-    private static final Pattern DELIMITER = Pattern.compile("[,.]|and");
-    private static final Pattern SPACE_PATTERN = Pattern.compile(" ");
 
     public static int part1(List<String> input) {
         return process(input.stream().map(Day11::parse).sorted().toList());
@@ -43,21 +38,22 @@ public final class Day11 {
     }
 
     private static Floor parse(String floor) {
-        int floorIndex = IntStream.range(0, ORDINALS.size())
-                .filter(i -> floor.startsWith(String.format("The %s floor contains", ORDINALS.get(i))))
+        var ordinals = List.of("first", "second", "third", "fourth");
+        var floorIndex = IntStream.range(0, ordinals.size())
+                .filter(i -> floor.startsWith(String.format("The %s floor contains", ordinals.get(i))))
                 .findFirst()
                 .orElseThrow();
         var generators = new HashSet<Generator>();
         var microchips = new HashSet<Microchip>();
-        DELIMITER.splitAsStream(floor).filter(v -> !v.trim().isEmpty()).forEach(part -> {
-            String[] values = SPACE_PATTERN.splitAsStream(part.trim()).toArray(String[]::new);
-            String element = values[values.length - 2];
-            switch (values[values.length - 1]) {
-                case "generator" -> generators.add(new Generator(element.intern()));
-                case "microchip" -> microchips.add(new Microchip(element.replace("-compatible", "").intern()));
+        var pattern = Pattern.compile(" (?<element>[^ -]+)[ -](?<type>generator|compatible microchip)");
+        for (var matcher = pattern.matcher(floor); matcher.find(); ) {
+            if (matcher.group("type").equals("generator")) {
+                generators.add(new Generator(matcher.group("element")));
+            } else {
+                microchips.add(new Microchip(matcher.group("element")));
             }
-        });
-        return new Floor(floorIndex, generators, microchips);
+        }
+        return new Floor(floorIndex, Set.copyOf(generators), Set.copyOf(microchips));
     }
 
     private static <T> Set<T> mapCombine(Set<T> initial, Set<String> addition, Function<String, T> mapper) {
@@ -65,26 +61,62 @@ public final class Day11 {
     }
 
     private static int process(List<Floor> floors) {
-        return process(new Result(), new Elevator(0, Direction.UP), floors, 0).orElseThrow();
+        int bestMoves = Integer.MAX_VALUE;
+        Map<String, Integer> seen = new HashMap<>();
+        var queue = floors.get(0).to(floors.get(1))
+                .map(option -> Move.from(1, floors, option))
+                .collect(Collectors.toCollection(ArrayDeque::new));
+        while (!queue.isEmpty()) {
+            var move = queue.removeFirst();
+            if (move.count < bestMoves) {
+                var state = move.toState();
+                if (Optional.ofNullable(seen.get(state)).filter(v -> v <= move.count).isEmpty()) {
+                    if (move.isCompleted()) {
+                        bestMoves = move.count;
+                    } else if (seen.merge(state, move.count, Integer::min) == move.count) {
+                        move.options().forEach(queue::addLast);
+                    }
+                }
+            }
+        }
+        return bestMoves;
     }
 
-    private static OptionalInt process(Result result, Elevator elevator, List<Floor> floors, int currentMoves) {
-        if (result.isTerminating(elevator, floors, currentMoves)) {
-            return OptionalInt.empty();
-        } else if (result.recordAndIsBestMoves(elevator, floors, currentMoves)) {
-            return OptionalInt.of(currentMoves);
+    private record Move(int count, int floorIndex, Direction direction, List<Floor> floors) {
+        static Move from(int count, List<Floor> oldFloors, Option option) {
+            return new Move(count, option.to.floorIndex,
+                    option.from.compareTo(option.to) < 0 ? Direction.UP : Direction.DOWN,
+                    oldFloors.stream().map(f -> f.floorIndex == option.from.floorIndex ? option.from
+                            : f.floorIndex == option.to.floorIndex ? option.to : f).toList());
         }
-        var fromFloor = floors.get(elevator.floorIndex);
-        return (elevator.areLowerFloorsEmpty(floors) ? IntStream.of(elevator.floorIndex + 1)
-                : IntStream.of(elevator.floorIndex + 1, elevator.floorIndex - 1))
-                .filter(i -> i >= 0 && i < floors.size())
-                .mapToObj(floors::get)
-                .flatMap(fromFloor::to)
-                .parallel()
-                .filter(o -> o.from.isValid() && o.to.isValid())
-                .map(o -> process(result, o.elevator(), o.copyUpdate(floors), currentMoves + 1))
-                .flatMapToInt(OptionalInt::stream)
-                .min();
+
+        boolean isCompleted() {
+            return floorIndex == floors.size() - 1 && floors.subList(0, floorIndex).stream().allMatch(Floor::isEmpty);
+        }
+
+        String toState() {
+            return IntStream.concat(
+                    floors.stream().flatMapToInt(Move::toState),
+                    IntStream.of(0, floorIndex, direction.ordinal())
+            ).mapToObj(String::valueOf).collect(Collectors.joining());
+        }
+
+        private static IntStream toState(Floor floor) {
+            if (floor.isEmpty()) {
+                return IntStream.of(0, 0, 0);
+            }
+            var pairCount = (int) floor.generators.stream().filter(g -> floor.microchips.stream().anyMatch(g)).count();
+            return IntStream.of(pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
+        }
+
+        Stream<Move> options() {
+            var fromFloor = floors.get(floorIndex);
+            return IntStream.of(floorIndex + 1, floorIndex - 1)
+                    .filter(i -> i >= 0 && i < floors.size())
+                    .mapToObj(floors::get)
+                    .flatMap(fromFloor::to)
+                    .map(option -> from(count + 1, floors, option));
+        }
     }
 
     private interface Element {
@@ -94,7 +126,7 @@ public final class Day11 {
     private record Generator(String element) implements Predicate<Microchip>, Element {
         @Override
         public boolean test(Microchip microchip) {
-            return microchip.element.equals(element);
+            return microchip.test(this);
         }
     }
 
@@ -123,14 +155,13 @@ public final class Day11 {
         }
 
         Stream<Option> to(Floor toFloor) {
-            var pair = generators.stream()
-                    .filter(g -> microchips.stream().anyMatch(g)).findAny();
+            var pair = generators.stream().filter(g -> microchips.stream().anyMatch(g)).findAny();
             var direction = floorIndex < toFloor.floorIndex ? Direction.UP : Direction.DOWN;
             return Stream.of(
                     pair.map(Generator::element).map(pairOption(toFloor)).stream(),
                     optionsFor(direction, generators, toFloor.microchips, moveGenerators(toFloor)),
                     optionsFor(direction, microchips, toFloor.generators, moveMicrochips(toFloor))
-            ).reduce(Stream.empty(), Stream::concat);
+            ).reduce(Stream.empty(), Stream::concat).filter(o -> o.from.isValid() && o.to.isValid());
         }
 
         Function<String, Option> pairOption(Floor to) {
@@ -148,9 +179,9 @@ public final class Day11 {
 
         private static <T extends Element> Stream<Option> optionsFor(Direction direction,
                                                                      Set<T> toCheck,
-                                                                     Set<? extends Element> toFilter,
+                                                                     Set<? extends Element> withFilter,
                                                                      Function<Set<T>, Option> mapper) {
-            var elements = toFilter.stream().map(Element::element).collect(Collectors.toUnmodifiableSet());
+            var elements = withFilter.stream().map(Element::element).collect(Collectors.toUnmodifiableSet());
             var copy = new ArrayList<T>(toCheck.size());
             toCheck.forEach(element -> {
                 if (elements.contains(element.element())) {
@@ -185,67 +216,8 @@ public final class Day11 {
         }
     }
 
-    private record Elevator(int floorIndex, Direction direction) {
-        boolean areLowerFloorsEmpty(List<Floor> floors) {
-            return floors.subList(0, floorIndex).stream().allMatch(Floor::isEmpty);
-        }
+    private record Option(Floor from, Floor to) {
     }
 
     private enum Direction {UP, DOWN}
-
-    private record Option(Floor from, Floor to) {
-        Elevator elevator() {
-            return new Elevator(to.floorIndex, from.floorIndex < to.floorIndex ? Direction.UP : Direction.DOWN);
-        }
-
-        List<Floor> copyUpdate(List<Floor> floors) {
-            var updatedFloors = new ArrayList<>(floors);
-            updatedFloors.set(from.floorIndex, from);
-            updatedFloors.set(to.floorIndex, to);
-            return updatedFloors;
-        }
-    }
-
-    private static final class Result {
-        private final Map<String, Integer> seen = new ConcurrentHashMap<>();
-        private final AtomicInteger bestMoves = new AtomicInteger(Integer.MAX_VALUE);
-
-        boolean isTerminating(Elevator elevator, List<Floor> floors, int currentMoves) {
-            return bestMoves.get() <= currentMoves || Optional.of(toState(elevator, floors))
-                    .filter(state -> seen.containsKey(state) && seen.get(state) <= currentMoves)
-                    .isPresent();
-        }
-
-        boolean recordAndIsBestMoves(Elevator elevator, List<Floor> floors, int currentMoves) {
-            if (elevator.areLowerFloorsEmpty(floors) && elevator.floorIndex == floors.size() - 1) {
-                bestMoves.set(currentMoves);
-                return true;
-            }
-            seen.merge(toState(elevator, floors), currentMoves, Integer::min);
-            return bestMoves.get() == currentMoves;
-        }
-
-        private static String toState(Elevator elevator, List<Floor> floors) {
-            return toState(elevator) + floors.stream().map(Result::toState).collect(Collectors.joining("", ":", ""));
-        }
-
-        private static String toState(Elevator elevator) {
-            var goingUp = elevator.floorIndex + ">";
-            var goingDown = "<" + elevator.floorIndex;
-            return elevator.floorIndex == 0 ? goingUp
-                    : elevator.floorIndex == ORDINALS.size() - 1 ? goingDown
-                    : switch (elevator.direction) {
-                case UP -> goingUp;
-                case DOWN -> goingDown;
-            };
-        }
-
-        private static String toState(Floor floor) {
-            if (floor.isEmpty()) {
-                return "[]";
-            }
-            var pairCount = (int) floor.generators.stream().filter(g -> floor.microchips.stream().anyMatch(g)).count();
-            return String.format("[%d:%d:%d]", pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
-        }
-    }
 }
