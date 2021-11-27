@@ -1,12 +1,11 @@
 package com.advent.of.code.hjk;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -16,6 +15,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.advent.of.code.hjk.AdventUtil.combine;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public final class Day11 {
 
@@ -57,29 +57,26 @@ public final class Day11 {
     }
 
     private static <T> Set<T> mapCombine(Set<T> initial, Set<String> addition, Function<String, T> mapper) {
-        return Stream.concat(initial.stream(), addition.stream().map(mapper)).collect(Collectors.toUnmodifiableSet());
+        return Stream.concat(initial.stream(), addition.stream().map(mapper)).collect(toUnmodifiableSet());
     }
 
     private static int process(List<Floor> floors) {
-        int bestMoves = Integer.MAX_VALUE;
         Map<String, Integer> seen = new HashMap<>();
         var queue = floors.get(0).to(floors.get(1))
                 .map(option -> Move.from(1, floors, option))
                 .collect(Collectors.toCollection(ArrayDeque::new));
         while (!queue.isEmpty()) {
             var move = queue.removeFirst();
-            if (move.count < bestMoves) {
-                var state = move.toState();
-                if (Optional.ofNullable(seen.get(state)).filter(v -> v <= move.count).isEmpty()) {
-                    if (move.isCompleted()) {
-                        bestMoves = move.count;
-                    } else if (seen.merge(state, move.count, Integer::min) == move.count) {
-                        move.options().forEach(queue::addLast);
-                    }
-                }
+            if (move.isCompleted()) {
+                return move.count;
+            }
+            var state = move.toState();
+            if (!seen.containsKey(state)) {
+                seen.put(state, move.count);
+                move.options().forEach(queue::addLast);
             }
         }
-        return bestMoves;
+        throw new IllegalArgumentException("No moves found.");
     }
 
     private record Move(int count, int floorIndex, Direction direction, List<Floor> floors) {
@@ -102,9 +99,6 @@ public final class Day11 {
         }
 
         private static IntStream toState(Floor floor) {
-            if (floor.isEmpty()) {
-                return IntStream.of(0, 0, 0);
-            }
             var pairCount = (int) floor.generators.stream().filter(g -> floor.microchips.stream().anyMatch(g)).count();
             return IntStream.of(pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
         }
@@ -119,18 +113,14 @@ public final class Day11 {
         }
     }
 
-    private interface Element {
-        String element();
-    }
-
-    private record Generator(String element) implements Predicate<Microchip>, Element {
+    private record Generator(String element) implements Predicate<Microchip> {
         @Override
         public boolean test(Microchip microchip) {
             return microchip.test(this);
         }
     }
 
-    private record Microchip(String element) implements Predicate<Generator>, Element {
+    private record Microchip(String element) implements Predicate<Generator> {
         @Override
         public boolean test(Generator generator) {
             return generator.element.equals(element);
@@ -150,69 +140,52 @@ public final class Day11 {
         }
 
         boolean isValid() {
-            return isEmpty() || generators.isEmpty()
-                    || microchips.stream().allMatch(m -> generators.stream().anyMatch(m));
+            return generators.isEmpty() || microchips.stream().allMatch(m -> generators.stream().anyMatch(m));
         }
 
         Stream<Option> to(Floor toFloor) {
-            var pair = generators.stream().filter(g -> microchips.stream().anyMatch(g)).findAny();
             var direction = floorIndex < toFloor.floorIndex ? Direction.UP : Direction.DOWN;
             return Stream.of(
-                    pair.map(Generator::element).map(pairOption(toFloor)).stream(),
-                    optionsFor(direction, generators, toFloor.microchips, moveGenerators(toFloor)),
-                    optionsFor(direction, microchips, toFloor.generators, moveMicrochips(toFloor))
+                    generators.stream().filter(g -> microchips.stream().anyMatch(g)).findAny().map(option(toFloor)).stream(),
+                    options(direction, generators, toFloor.microchips, moveGenerators(toFloor)),
+                    options(direction, microchips, toFloor.generators, moveMicrochips(toFloor))
             ).reduce(Stream.empty(), Stream::concat).filter(o -> o.from.isValid() && o.to.isValid());
         }
 
-        Function<String, Option> pairOption(Floor to) {
-            return element -> new Option(
+        Function<Generator, Option> option(Floor to) {
+            return generator -> new Option(
                     new Floor(floorIndex,
-                            generators.stream().filter(g -> !g.element.equals(element))
-                                    .collect(Collectors.toUnmodifiableSet()),
-                            microchips.stream().filter(m -> !m.element.equals(element))
-                                    .collect(Collectors.toUnmodifiableSet())),
+                            generators.stream().filter(g -> !g.equals(generator)).collect(toUnmodifiableSet()),
+                            microchips.stream().filter(m -> !m.test(generator)).collect(toUnmodifiableSet())),
                     new Floor(to.floorIndex,
-                            combine(to.generators, Set.of(new Generator(element))),
-                            combine(to.microchips, Set.of(new Microchip(element))))
-            );
+                            combine(to.generators, Set.of(generator)),
+                            combine(to.microchips, Set.of(new Microchip(generator.element)))));
         }
 
-        private static <T extends Element> Stream<Option> optionsFor(Direction direction,
-                                                                     Set<T> toCheck,
-                                                                     Set<? extends Element> withFilter,
-                                                                     Function<Set<T>, Option> mapper) {
-            var elements = withFilter.stream().map(Element::element).collect(Collectors.toUnmodifiableSet());
-            var copy = new ArrayList<T>(toCheck.size());
-            toCheck.forEach(element -> {
-                if (elements.contains(element.element())) {
-                    copy.add(0, element);
-                } else {
-                    copy.add(element);
-                }
-            });
+        private static <T extends Predicate<C>, C> Stream<Option> options(Direction direction,
+                                                                          Set<T> values,
+                                                                          Set<C> checker,
+                                                                          Function<Set<T>, Option> mapper) {
+            var copy = values.stream().sorted(Comparator.comparing(v -> checker.stream().noneMatch(v))).toList();
             return (switch (copy.size()) {
                 case 0 -> Stream.<Set<T>>empty();
                 case 1 -> Stream.of(copy);
-                default -> direction == Direction.UP
-                        ? Stream.of(copy.subList(0, 2), copy.subList(0, 1), copy.subList(1, 2))
-                        : Stream.of(copy.subList(0, 1), copy.subList(1, 2));
-            }).map(Set::copyOf).map(mapper);
+                default -> Stream.of(copy.subList(0, 2), copy.subList(0, 1), copy.subList(1, 2));
+            }).map(Set::copyOf).filter(set -> direction == Direction.UP || set.size() == 1).map(mapper);
         }
 
         private Function<Set<Generator>, Option> moveGenerators(Floor to) {
             return moveGenerators -> new Option(
                     new Floor(floorIndex, generators.stream().filter(g -> !moveGenerators.contains(g))
-                            .collect(Collectors.toUnmodifiableSet()), microchips),
-                    new Floor(to.floorIndex, combine(to.generators, moveGenerators), to.microchips)
-            );
+                            .collect(toUnmodifiableSet()), microchips),
+                    new Floor(to.floorIndex, combine(to.generators, moveGenerators), to.microchips));
         }
 
         private Function<Set<Microchip>, Option> moveMicrochips(Floor to) {
             return moveMicrochips -> new Option(
                     new Floor(floorIndex, generators, microchips.stream()
-                            .filter(m -> !moveMicrochips.contains(m)).collect(Collectors.toUnmodifiableSet())),
-                    new Floor(to.floorIndex, to.generators, combine(to.microchips, moveMicrochips))
-            );
+                            .filter(m -> !moveMicrochips.contains(m)).collect(toUnmodifiableSet())),
+                    new Floor(to.floorIndex, to.generators, combine(to.microchips, moveMicrochips)));
         }
     }
 
