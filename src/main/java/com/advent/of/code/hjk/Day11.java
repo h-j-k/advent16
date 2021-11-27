@@ -62,9 +62,7 @@ public final class Day11 {
 
     private static int process(List<Floor> floors) {
         Map<String, Integer> seen = new HashMap<>();
-        var queue = floors.get(0).to(floors.get(1))
-                .map(option -> Move.from(1, floors, option))
-                .collect(Collectors.toCollection(ArrayDeque::new));
+        var queue = new ArrayDeque<>(Set.of(new Move(0, 0, Direction.UP, floors)));
         while (!queue.isEmpty()) {
             var move = queue.removeFirst();
             if (move.isCompleted()) {
