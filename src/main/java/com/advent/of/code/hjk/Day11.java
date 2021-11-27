@@ -2,10 +2,8 @@ package com.advent.of.code.hjk;
 
 import java.util.ArrayDeque;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -61,16 +59,13 @@ public final class Day11 {
     }
 
     private static int process(List<Floor> floors) {
-        Map<String, Integer> seen = new HashMap<>();
+        Set<String> seen = new HashSet<>();
         var queue = new ArrayDeque<>(Set.of(new Move(0, 0, Direction.UP, floors)));
         while (!queue.isEmpty()) {
             var move = queue.removeFirst();
             if (move.isCompleted()) {
                 return move.count;
-            }
-            var state = move.toState();
-            if (!seen.containsKey(state)) {
-                seen.put(state, move.count);
+            } else if (seen.add(move.toState())) {
                 move.options().forEach(queue::addLast);
             }
         }
