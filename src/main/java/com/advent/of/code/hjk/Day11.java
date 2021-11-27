@@ -60,8 +60,7 @@ public final class Day11 {
 
     private static int process(List<Floor> floors) {
         Set<String> seen = new HashSet<>();
-        var queue = new ArrayDeque<>(Set.of(new Move(0, 0, Direction.UP, floors)));
-        while (!queue.isEmpty()) {
+        for (var queue = new ArrayDeque<>(Set.of(new Move(0, 0, Direction.UP, floors))); !queue.isEmpty(); ) {
             var move = queue.removeFirst();
             if (move.isCompleted()) {
                 return move.count;
