@@ -22,7 +22,7 @@ public final class Day11 {
     }
 
     public static int part1(List<String> input) {
-        return process(input.stream().map(Day11::parse).sorted().toList());
+        return process(input.stream().map(Day11::parse).collect(toUnmodifiableSet()));
     }
 
     public static int part2(List<String> input) {
@@ -31,7 +31,7 @@ public final class Day11 {
                 .map(f -> f.floorIndex > 0 ? f : new Floor(0,
                         mapCombine(f.generators, addition, Generator::new),
                         mapCombine(f.microchips, addition, Microchip::new)
-                )).sorted().toList();
+                )).collect(toUnmodifiableSet());
         return process(floors);
     }
 
@@ -58,7 +58,7 @@ public final class Day11 {
         return Stream.concat(initial.stream(), addition.stream().map(mapper)).collect(toUnmodifiableSet());
     }
 
-    private static int process(List<Floor> floors) {
+    private static int process(Set<Floor> floors) {
         Set<String> seen = new HashSet<>();
         for (var queue = new ArrayDeque<>(Set.of(new Move(0, 0, floors))); !queue.isEmpty(); ) {
             var move = queue.removeFirst();
@@ -71,11 +71,11 @@ public final class Day11 {
         throw new IllegalArgumentException("No moves found.");
     }
 
-    private record Move(int count, int floorIndex, List<Floor> floors) {
-        static Move from(int count, List<Floor> oldFloors, Option option) {
+    private record Move(int count, int floorIndex, Set<Floor> floors) {
+        static Move from(int count, Set<Floor> oldFloors, Option option) {
             return new Move(count, option.to.floorIndex,
                     oldFloors.stream().map(f -> f.floorIndex == option.from.floorIndex ? option.from
-                            : f.floorIndex == option.to.floorIndex ? option.to : f).toList());
+                            : f.floorIndex == option.to.floorIndex ? option.to : f).collect(toUnmodifiableSet()));
         }
 
         boolean isCompleted() {
@@ -84,7 +84,7 @@ public final class Day11 {
         }
 
         String toState() {
-            return floorIndex + floors.stream().map(Move::toState).collect(Collectors.joining());
+            return floorIndex + floors.stream().sorted().map(Move::toState).collect(Collectors.joining());
         }
 
         private static String toState(Floor floor) {
@@ -93,7 +93,7 @@ public final class Day11 {
         }
 
         Stream<Move> options() {
-            var fromFloor = floors.get(floorIndex);
+            var fromFloor = floors.stream().filter(f -> f.floorIndex == floorIndex).findFirst().orElseThrow();
             return IntStream.of(floorIndex + 1, floorIndex - 1).boxed()
                     .flatMap(i -> floors.stream().filter(f -> f.floorIndex == i).findFirst().stream())
                     .flatMap(fromFloor::to)
