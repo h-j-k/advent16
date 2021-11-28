@@ -79,7 +79,8 @@ public final class Day11 {
         }
 
         boolean isCompleted() {
-            return floorIndex == floors.size() - 1 && floors.subList(0, floorIndex).stream().allMatch(Floor::isEmpty);
+            return floorIndex == floors.stream().mapToInt(f -> f.floorIndex).max().orElseThrow()
+                    && floors.stream().allMatch(f -> f.floorIndex == floorIndex || f.isEmpty());
         }
 
         String toState() {
@@ -93,9 +94,8 @@ public final class Day11 {
 
         Stream<Move> options() {
             var fromFloor = floors.get(floorIndex);
-            return IntStream.of(floorIndex + 1, floorIndex - 1)
-                    .filter(i -> i >= 0 && i < floors.size())
-                    .mapToObj(floors::get)
+            return IntStream.of(floorIndex + 1, floorIndex - 1).boxed()
+                    .flatMap(i -> floors.stream().filter(f -> f.floorIndex == i).findFirst().stream())
                     .flatMap(fromFloor::to)
                     .map(option -> from(count + 1, floors, option));
         }
@@ -134,13 +134,13 @@ public final class Day11 {
         Stream<Option> to(Floor toFloor) {
             var isGoingUp = floorIndex < toFloor.floorIndex;
             return Stream.of(
-                    generators.stream().filter(g -> microchips.stream().anyMatch(g)).findAny().map(option(toFloor)).stream(),
+                    generators.stream().filter(g -> microchips.stream().anyMatch(g)).findFirst().map(option(toFloor)).stream(),
                     options(isGoingUp, generators, toFloor.microchips, moveGenerators(toFloor)),
                     options(isGoingUp, microchips, toFloor.generators, moveMicrochips(toFloor))
             ).reduce(Stream.empty(), Stream::concat).filter(o -> o.from.isValid() && o.to.isValid());
         }
 
-        Function<Generator, Option> option(Floor to) {
+        private Function<Generator, Option> option(Floor to) {
             return generator -> new Option(
                     new Floor(floorIndex,
                             generators.stream().filter(g -> !g.equals(generator)).collect(toUnmodifiableSet()),
