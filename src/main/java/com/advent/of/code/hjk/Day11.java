@@ -60,7 +60,7 @@ public final class Day11 {
 
     private static int process(List<Floor> floors) {
         Set<String> seen = new HashSet<>();
-        for (var queue = new ArrayDeque<>(Set.of(new Move(0, 0, Direction.UP, floors))); !queue.isEmpty(); ) {
+        for (var queue = new ArrayDeque<>(Set.of(new Move(0, 0, floors))); !queue.isEmpty(); ) {
             var move = queue.removeFirst();
             if (move.isCompleted()) {
                 return move.count;
@@ -71,10 +71,9 @@ public final class Day11 {
         throw new IllegalArgumentException("No moves found.");
     }
 
-    private record Move(int count, int floorIndex, Direction direction, List<Floor> floors) {
+    private record Move(int count, int floorIndex, List<Floor> floors) {
         static Move from(int count, List<Floor> oldFloors, Option option) {
             return new Move(count, option.to.floorIndex,
-                    option.from.compareTo(option.to) < 0 ? Direction.UP : Direction.DOWN,
                     oldFloors.stream().map(f -> f.floorIndex == option.from.floorIndex ? option.from
                             : f.floorIndex == option.to.floorIndex ? option.to : f).toList());
         }
@@ -84,15 +83,12 @@ public final class Day11 {
         }
 
         String toState() {
-            return IntStream.concat(
-                    floors.stream().flatMapToInt(Move::toState),
-                    IntStream.of(0, floorIndex, direction.ordinal())
-            ).mapToObj(String::valueOf).collect(Collectors.joining());
+            return floorIndex + floors.stream().map(Move::toState).collect(Collectors.joining());
         }
 
-        private static IntStream toState(Floor floor) {
+        private static String toState(Floor floor) {
             var pairCount = (int) floor.generators.stream().filter(g -> floor.microchips.stream().anyMatch(g)).count();
-            return IntStream.of(pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
+            return String.format("%d%d%d", pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
         }
 
         Stream<Move> options() {
@@ -136,11 +132,11 @@ public final class Day11 {
         }
 
         Stream<Option> to(Floor toFloor) {
-            var direction = floorIndex < toFloor.floorIndex ? Direction.UP : Direction.DOWN;
+            var isGoingUp = floorIndex < toFloor.floorIndex;
             return Stream.of(
                     generators.stream().filter(g -> microchips.stream().anyMatch(g)).findAny().map(option(toFloor)).stream(),
-                    options(direction, generators, toFloor.microchips, moveGenerators(toFloor)),
-                    options(direction, microchips, toFloor.generators, moveMicrochips(toFloor))
+                    options(isGoingUp, generators, toFloor.microchips, moveGenerators(toFloor)),
+                    options(isGoingUp, microchips, toFloor.generators, moveMicrochips(toFloor))
             ).reduce(Stream.empty(), Stream::concat).filter(o -> o.from.isValid() && o.to.isValid());
         }
 
@@ -154,7 +150,7 @@ public final class Day11 {
                             combine(to.microchips, Set.of(new Microchip(generator.element)))));
         }
 
-        private static <T extends Predicate<C>, C> Stream<Option> options(Direction direction,
+        private static <T extends Predicate<C>, C> Stream<Option> options(boolean isGoingUp,
                                                                           Set<T> values,
                                                                           Set<C> checker,
                                                                           Function<Set<T>, Option> mapper) {
@@ -163,7 +159,7 @@ public final class Day11 {
                 case 0 -> Stream.<Set<T>>empty();
                 case 1 -> Stream.of(copy);
                 default -> Stream.of(copy.subList(0, 2), copy.subList(0, 1), copy.subList(1, 2));
-            }).map(Set::copyOf).filter(set -> direction == Direction.UP || set.size() == 1).map(mapper);
+            }).map(Set::copyOf).filter(set -> isGoingUp || set.size() == 1).map(mapper);
         }
 
         private Function<Set<Generator>, Option> moveGenerators(Floor to) {
@@ -183,6 +179,4 @@ public final class Day11 {
 
     private record Option(Floor from, Floor to) {
     }
-
-    private enum Direction {UP, DOWN}
 }
