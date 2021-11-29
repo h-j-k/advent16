@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -72,24 +73,16 @@ public final class Day11 {
     }
 
     private record Move(int count, int floorIndex, Set<Floor> floors) {
-        static Move from(int count, Set<Floor> oldFloors, Option option) {
-            return new Move(count, option.to.floorIndex,
-                    oldFloors.stream().map(f -> f.floorIndex == option.from.floorIndex ? option.from
-                            : f.floorIndex == option.to.floorIndex ? option.to : f).collect(toUnmodifiableSet()));
-        }
-
         boolean isCompleted() {
             return floorIndex == floors.stream().mapToInt(f -> f.floorIndex).max().orElseThrow()
                     && floors.stream().allMatch(f -> f.floorIndex == floorIndex || f.isEmpty());
         }
 
         String toState() {
-            return floorIndex + floors.stream().sorted().map(Move::toState).collect(Collectors.joining());
-        }
-
-        private static String toState(Floor floor) {
-            var pairCount = (int) floor.generators.stream().filter(g -> floor.microchips.stream().anyMatch(g)).count();
-            return String.format("%d%d%d", pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
+            return floorIndex + floors.stream().sorted(Comparator.comparing(f -> f.floorIndex)).map(floor -> {
+                var pairCount = floor.generators.stream().filter(g -> floor.microchips.stream().anyMatch(g)).count();
+                return String.format("%d%d%d", pairCount, floor.generators.size() - pairCount, floor.microchips.size() - pairCount);
+            }).collect(Collectors.joining());
         }
 
         Stream<Move> options() {
@@ -97,32 +90,27 @@ public final class Day11 {
             return IntStream.of(floorIndex + 1, floorIndex - 1).boxed()
                     .flatMap(i -> floors.stream().filter(f -> f.floorIndex == i).findFirst().stream())
                     .flatMap(fromFloor::to)
-                    .map(option -> from(count + 1, floors, option));
+                    .map(option -> new Move(count + 1, option.to.floorIndex,
+                            floors.stream().map(f -> f.floorIndex == option.from.floorIndex ? option.from
+                                    : f.floorIndex == option.to.floorIndex ? option.to : f).collect(toUnmodifiableSet())));
         }
     }
 
     private record Generator(String element) implements Predicate<Microchip> {
         @Override
         public boolean test(Microchip microchip) {
-            return microchip.test(this);
+            return microchip != null && microchip.test(this);
         }
     }
 
     private record Microchip(String element) implements Predicate<Generator> {
         @Override
         public boolean test(Generator generator) {
-            return generator.element.equals(element);
+            return generator != null && Objects.equals(element, generator.element);
         }
     }
 
-    private record Floor(int floorIndex,
-                         Set<Generator> generators,
-                         Set<Microchip> microchips) implements Comparable<Floor> {
-        @Override
-        public int compareTo(Floor otherFloor) {
-            return Integer.compare(floorIndex, otherFloor.floorIndex);
-        }
-
+    private record Floor(int floorIndex, Set<Generator> generators, Set<Microchip> microchips) {
         boolean isEmpty() {
             return generators.isEmpty() && microchips.isEmpty();
         }
