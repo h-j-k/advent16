@@ -1,6 +1,5 @@
 package com.advent.of.code.hjk;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,11 +12,15 @@ public final class Day12 {
     }
 
     public static int part1(List<String> input) {
-        return process(input).getOrDefault("a", 0);
+        return process(input, Map.of("a", 0, "b", 0, "c", 0, "d", 0));
     }
 
-    private static Map<String, Integer> process(List<String> input) {
-        var registers = new HashMap<>(Map.of("a", 0, "b", 0, "c", 0, "d", 0));
+    public static int part2(List<String> input) {
+        return process(input, Map.of("a", 0, "b", 0, "c", 1, "d", 0));
+    }
+
+    private static int process(List<String> input, Map<String, Integer> initial) {
+        var registers = new HashMap<>(initial);
         for (var i = 0; i < input.size(); ) {
             var values = input.get(i).split(" ");
             switch (values[0]) {
@@ -36,7 +39,7 @@ public final class Day12 {
                 i++;
             }
         }
-        return registers;
+        return registers.get("a");
     }
 
     private static int parseOrGet(String value, Map<String, Integer> registers) {
