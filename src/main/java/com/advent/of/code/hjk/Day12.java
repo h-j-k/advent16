@@ -23,20 +23,16 @@ public final class Day12 {
         var registers = new HashMap<>(initial);
         for (var i = 0; i < input.size(); ) {
             var values = input.get(i).split(" ");
+            i++;
             switch (values[0]) {
                 case "cpy" -> registers.put(values[2], parseOrGet(values[1], registers));
                 case "inc" -> registers.compute(values[1], (k, v) -> Objects.requireNonNull(v) + 1);
                 case "dec" -> registers.compute(values[1], (k, v) -> Objects.requireNonNull(v) - 1);
                 case "jnz" -> {
                     if (parseOrGet(values[1], registers) > 0) {
-                        i += Integer.parseInt(values[2]);
-                    } else {
-                        i++;
+                        i += Integer.parseInt(values[2]) - 1;
                     }
                 }
-            }
-            if (!values[0].equals("jnz")) {
-                i++;
             }
         }
         return registers.get("a");
