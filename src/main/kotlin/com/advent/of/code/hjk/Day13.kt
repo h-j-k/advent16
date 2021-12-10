@@ -20,19 +20,19 @@ data class Day13Coordinate(val x: Int, val y: Int) {
     }.filter { it.isOpen(n) }.toSet()
 }
 
-private data class Move(val count: Int, val position: Day13Coordinate)
+private data class Day13Move(val count: Int, val position: Day13Coordinate)
 
 object Day13 {
     fun part1(n: Int, target: Day13Coordinate): Int {
         val seen = mutableSetOf<Day13Coordinate>()
-        val queue = ArrayDeque(setOf(Move(0, Day13Coordinate(1, 1))))
+        val queue = ArrayDeque(setOf(Day13Move(0, Day13Coordinate(1, 1))))
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
             if (current.position == target) {
                 return current.count
             } else if (seen.add(current.position)) {
                 current.position.movesAround(n)
-                    .map { Move(current.count + 1, it) }
+                    .map { Day13Move(current.count + 1, it) }
                     .let(queue::addAll)
             }
         }
@@ -41,12 +41,12 @@ object Day13 {
 
     fun part2(n: Int): Int {
         val seen = mutableSetOf<Day13Coordinate>()
-        val queue = ArrayDeque(setOf(Move(0, Day13Coordinate(1, 1))))
+        val queue = ArrayDeque(setOf(Day13Move(0, Day13Coordinate(1, 1))))
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
             if (seen.add(current.position) && current.count + 1 <= 50) {
                 current.position.movesAround(n)
-                    .map { Move(current.count + 1, it) }
+                    .map { Day13Move(current.count + 1, it) }
                     .let(queue::addAll)
             }
         }
