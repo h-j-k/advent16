@@ -14,12 +14,12 @@ object Day19 {
     }
 
     fun part2(input: Int): Int {
-        val left = ArrayDeque((1..input / 2).toList())
+        val left = ArrayDeque((1..(input / 2)).toList())
         val right = ArrayDeque(((input / 2) + 1..input).toList())
         while (left.size + right.size > 1) {
             if (left.size > right.size) left.pollLast() else right.pollFirst()
-            right.addLast(left.pollFirst())
-            left.addLast(right.pollFirst())
+            right.add(left.pollFirst())
+            left.add(right.pollFirst())
         }
         return left.firstOrNull() ?: right.first()
     }

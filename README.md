@@ -4,4 +4,4 @@
 
 ## h/t to:
 
-* Day 19: [Todd Ginsberg](https://github.com/tginsberg/advent-2016-kotlin/blob/master/src/main/kotlin/com/ginsberg/advent2016/Day19.kt) solution for `Deque` implementation.
+* Day 19: [Todd Ginsberg's solution](https://github.com/tginsberg/advent-2016-kotlin/blob/master/src/main/kotlin/com/ginsberg/advent2016/Day19.kt) for `Deque` implementation.
