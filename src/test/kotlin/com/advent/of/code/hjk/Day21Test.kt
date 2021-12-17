@@ -9,4 +9,9 @@ class Day21Test : TestBase() {
     fun part1() {
         assertThat(Day21.part1("abcdefgh", input)).isEqualTo("hcdefbag")
     }
+
+    @Test
+    fun part2() {
+        assertThat(Day21.part2("fbgdceah", input)).isEqualTo("fbhaegdc")
+    }
 }

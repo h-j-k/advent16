@@ -7,6 +7,13 @@ object Day21 {
             .forEach { (k, op) -> op(op.result(k), r) }
     }.toString()
 
+    fun part2(input: String, rawOperations: List<String>): String = StringBuilder(input).also { r ->
+        rawOperations.map { op -> op to operations.single { it.regex.matches(op) } }
+            .reversed()
+            .map { (k, op) -> if (op is RotateByPosition) k to InverseRotateByPosition else op.inverse(k) to op }
+            .forEach { (k, op) -> op(op.result(k), r) }
+    }.toString()
+
     private val operations =
         setOf(SwapPosition, SwapLetter, RotateLeftRight, RotateByPosition, ReversePosition, MovePosition)
 
@@ -18,6 +25,8 @@ object Day21 {
         val MatchResult.toChars: List<Char> get() = destructured.toList().map { it[0] }
 
         fun result(input: String) = regex.matchEntire(input)!!
+
+        fun inverse(input: String) = input
     }
 
     private object SwapPosition : Operation {
@@ -51,6 +60,10 @@ object Day21 {
             if (direction == "left") input.append(temp.drop(offset) + temp.take(offset))
             else input.append(temp.takeLast(offset) + temp.dropLast(offset))
         }
+
+        override fun inverse(input: String): String = result(input).destructured.let { (direction, x) ->
+            if (direction == "left") "rotate right $x steps" else "rotate left $x steps"
+        }
     }
 
     private object RotateByPosition : Operation {
@@ -61,6 +74,26 @@ object Day21 {
             val steps = input.indexOf(x).let { if (it < 4) it + 1 else it + 2 }
             RotateLeftRight(RotateLeftRight.result("rotate right $steps steps"), input)
         }
+
+        override fun inverse(input: String) = throw NotImplementedError("See InverseRotateByPosition")
+    }
+
+    private object InverseRotateByPosition : Operation {
+        override val regex = RotateByPosition.regex
+
+        override fun invoke(result: MatchResult, input: StringBuilder) {
+            for (i in input.indices) {
+                val candidate = StringBuilder(input)
+                RotateLeftRight(RotateLeftRight.result("rotate left $i steps"), candidate)
+                if (StringBuilder(candidate).also { RotateByPosition(result, it) }.toString() == input.toString()) {
+                    input.clear()
+                    input.append(candidate)
+                    break
+                }
+            }
+        }
+
+        override fun inverse(input: String) = throw NotImplementedError("See RotateByPosition")
     }
 
     private object ReversePosition : Operation {
@@ -84,5 +117,8 @@ object Day21 {
             if (x < y) input.replace(y - 1, y, "${input[y - 1]}$c")
             else if (x > y) input.replace(y, y + 1, "$c${input[y]}")
         }
+
+        override fun inverse(input: String) =
+            result(input).toInts.let { (x, y) -> "move position $y to position $x" }
     }
 }
