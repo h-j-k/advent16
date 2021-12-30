@@ -14,13 +14,46 @@ object Day23 {
                 "inc" -> registers.compute(values[1]) { _, v -> v!! + 1 }
                 "dec" -> registers.compute(values[1]) { _, v -> v!! - 1 }
                 "jnz" -> {
-                    if (parseOrGet(values[1], registers) > 0) {
-                        i += parseOrGet(values[2], registers) - 1
+                    var value = parseOrGet(values[1], registers)
+                    val offset = parseOrGet(values[2], registers)
+                    if (value > 0) {
+                        val current = i - 1
+                        i = current + offset
+                        if (values[1] in "abcd") {
+                            val loopOffset =
+                                copy.subList(i, current).indexOfFirst { it.matches("(inc|dec) ${values[1]}".toRegex()) }
+                            if (loopOffset < 0) continue
+                            val multiplier: Int
+                            val loopIndex: Int
+                            if (offset == -2) {
+                                multiplier = 1
+                                loopIndex = if (loopOffset == 0) i + 1 else i
+                            } else {
+                                val inner = copy.subList(i, i + loopOffset)
+                                val innerLoopOffset = inner.indexOfFirst { it.matches("jnz.*-2".toRegex()) }
+                                val key = copy[i + innerLoopOffset].split(" ")[1]
+                                val from = inner.singleOrNull { it.matches("cpy . $key".toRegex()) } ?: continue
+                                multiplier = value
+                                value = registers.getValue(from.split(" ")[1])
+                                val temp = copy.subList(i, i + innerLoopOffset)
+                                    .indexOfFirst { it.matches("(inc|dec) $key".toRegex()) }
+                                loopIndex = if (temp + 1 == innerLoopOffset) i + temp - 1 else i + temp
+                            }
+                            val (loopInstruction, loopVariable) = copy[loopIndex].split(" ")
+                            if (loopInstruction == "inc") {
+                                registers.compute(loopVariable) { _, v -> v!! + value * multiplier }
+                                registers[values[1]] = 0
+                            } else {
+                                registers.compute(loopVariable) { _, v -> v!! - value * multiplier }
+                                registers[values[1]] = 0
+                            }
+                            i = current + 1
+                        }
                     }
                 }
                 "tgl" -> {
                     val target = i - 1 + parseOrGet(values[1], registers)
-                    if (target < copy.size) {
+                    if (target < copy.size && target >= 0) {
                         val newInstruction = when (copy[target].count { it == ' ' }) {
                             1 -> if (copy[target].startsWith("inc")) "dec" else "inc"
                             2 -> if (copy[target].startsWith("jnz")) "cpy" else "jnz"
@@ -41,4 +74,6 @@ object Day23 {
     }
 
     fun part1(input: List<String>) = process(input, mapOf("a" to 7, "b" to 0, "c" to 0, "d" to 0))
+
+    fun part2(input: List<String>) = process(input, mapOf("a" to 12, "b" to 0, "c" to 0, "d" to 0))
 }
